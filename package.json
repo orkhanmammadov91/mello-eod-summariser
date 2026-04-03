@@ -1,0 +1,13 @@
+{
+  "name": "mello-eod-summariser",
+  "version": "2.0.0",
+  "description": "Mello House Weekly EOD Summariser — no configuration needed",
+  "main": "api/proxy.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
