@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm install",
+  "outputDirectory": ".",
+  "env": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Your Anthropic API key",
+      "required": true
+    }
+  }
+}
