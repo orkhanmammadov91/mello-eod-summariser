@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>API Test</title>
+<style>
+  body { font-family: monospace; padding: 20px; background: #f0f0f0; }
+  .box { background: white; padding: 20px; margin: 10px 0; border: 1px solid #ccc; }
+  pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+  button { padding: 10px 20px; font-size: 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h1>API Test</h1>
+
+<div class="box">
+  <h3>1. Test Health Check</h3>
+  <button onclick="testHealth()">Test Health</button>
+  <pre id="health-result">Waiting...</pre>
+</div>
+
+<div class="box">
+  <h3>2. Test API Call</h3>
+  <button onclick="testAPI()">Test API</button>
+  <pre id="api-result">Waiting...</pre>
+</div>
+
+<div class="box">
+  <h3>Configuration</h3>
+  <p>Vercel URL: <input type="text" id="vercelUrl" value="https://mello-eod-summariser.vercel.app" style="width: 100%; padding: 8px;"></p>
+  <button onclick="updateUrl()">Update URL</button>
+</div>
+
+<script>
+let VERCEL_URL = localStorage.getItem('vercel_url') || 'https://mello-eod-summariser.vercel.app';
+document.getElementById('vercelUrl').value = VERCEL_URL;
+
+function updateUrl() {
+  VERCEL_URL = document.getElementById('vercelUrl').value.replace(/\/$/, '');
+  localStorage.setItem('vercel_url', VERCEL_URL);
+  alert('Updated to: ' + VERCEL_URL);
+}
+
+async function testHealth() {
+  const result = document.getElementById('health-result');
+  result.textContent = 'Testing...';
+  try {
+    const resp = await fetch(VERCEL_URL + '/api/proxy', {
+      method: 'OPTIONS'
+    });
+    result.textContent = `Status: ${resp.status}\n\nHeaders:\n${JSON.stringify([...resp.headers.entries()], null, 2)}`;
+  } catch (e) {
+    result.textContent = `ERROR: ${e.message}`;
+  }
+}
+
+async function testAPI() {
+  const result = document.getElementById('api-result');
+  result.textContent = 'Testing...';
+  try {
+    const resp = await fetch(VERCEL_URL + '/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }]
+      })
+    });
+    const data = await resp.json();
+    result.textContent = `Status: ${resp.status}\n\n${JSON.stringify(data, null, 2)}`;
+  } catch (e) {
+    result.textContent = `ERROR: ${e.message}`;
+  }
+}
+</script>
+</body>
+</html>
