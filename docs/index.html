@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mello House — Weekly EOD Summariser</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1a1612; --paper: #f5f0e8; --cream: #ede7d9;
+    --gold: #b8956a; --gold-light: #d4b896; --gold-pale: #f0e4d0;
+    --muted: #8a7d6e; --rule: #c8b99a; --white: #fdfaf5;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Cormorant Garamond', Georgia, serif; background: var(--paper); color: var(--ink); min-height: 100vh; overflow-x: hidden; }
+
+  header { background: var(--ink); padding: 2.5rem 3rem; display: flex; align-items: baseline; gap: 2rem; border-bottom: 1px solid var(--gold); }
+  .brand { font-size: 1.05rem; letter-spacing: 0.25em; text-transform: uppercase; color: var(--gold); font-weight: 400; }
+  .brand-sub { font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  main { padding: 3rem; max-width: 1100px; margin: 0 auto; }
+  .drop-area { border: 1px dashed var(--gold); background: var(--white); border-radius: 2px; padding: 4rem 2rem; text-align: center; cursor: pointer; transition: background 0.25s, border-color 0.25s; position: relative; }
+  .drop-area.drag-over { background: var(--gold-pale); border-style: solid; }
+  .drop-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-icon { font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.4; }
+  .drop-title { font-size: 1.6rem; font-weight: 300; letter-spacing: 0.04em; margin-bottom: 0.4rem; }
+  .drop-sub { font-size: 0.75rem; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+
+  .file-list { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+  .file-pill { background: var(--cream); border: 1px solid var(--gold); border-radius: 2px; padding: 0.35rem 0.8rem; font-size: 0.72rem; font-family: 'DM Mono', monospace; color: var(--ink); display: flex; align-items: center; gap: 0.5rem; }
+  .file-pill .remove { cursor: pointer; color: var(--gold); font-size: 0.9rem; background: none; border: none; padding: 0; }
+
+  .actions { margin-top: 2rem; display: flex; gap: 1rem; align-items: center; }
+  .btn-generate { background: var(--ink); color: var(--gold); border: 1px solid var(--gold); padding: 0.85rem 2.5rem; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; cursor: pointer; transition: background 0.2s, color 0.2s; }
+  .btn-generate:hover:not(:disabled) { background: var(--gold); color: var(--ink); }
+  .btn-generate:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-clear { background: none; border: 1px solid var(--rule); color: var(--muted); padding: 0.85rem 1.8rem; font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: border-color 0.2s, color 0.2s; }
+  .btn-clear:hover { border-color: var(--gold); color: var(--gold); }
+  .status-msg { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--muted); margin-left: auto; }
+
+  .progress-wrap { margin-top: 2rem; display: none; }
+  .progress-wrap.visible { display: block; }
+  .progress-bar-bg { height: 2px; background: var(--rule); border-radius: 1px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--gold); width: 0%; transition: width 0.4s ease; }
+  .progress-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--muted); margin-top: 0.5rem; }
+
+  .section-rule { display: flex; align-items: center; gap: 1.2rem; margin: 3rem 0 2rem; }
+  .section-rule::before, .section-rule::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
+  .section-rule span { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+
+  #output { display: none; }
+  #output.visible { display: block; }
+  .week-header { margin-bottom: 3rem; }
+  .week-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.4rem; }
+  .week-title { font-size: 2.8rem; font-weight: 300; line-height: 1.1; }
+
+  .summary-section { border-top: 1px solid var(--rule); padding: 2.2rem 0; display: grid; grid-template-columns: 240px 1fr; gap: 2rem; }
+  .summary-section:last-child { border-bottom: 1px solid var(--rule); }
+  .section-heading { font-size: 1.05rem; font-weight: 500; color: var(--gold); font-style: italic; line-height: 1.3; padding-top: 0.1rem; }
+  .section-body { font-size: 1.05rem; font-weight: 300; line-height: 1.75; }
+  .section-body p { margin-bottom: 0.8rem; }
+  .section-body p:last-child { margin-bottom: 0; }
+  .ntr-tag { font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--rule); display: inline-block; padding: 0.2rem 0.6rem; }
+
+  .export-bar { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--rule); display: flex; gap: 1rem; align-items: center; }
+  .export-label { font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-right: auto; }
+  .btn-export { background: none; border: 1px solid var(--rule); color: var(--muted); padding: 0.65rem 1.4rem; font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; transition: all 0.2s; }
+  .btn-export:hover { border-color: var(--gold); color: var(--gold); }
+
+  #loading { display: none; position: fixed; inset: 0; background: rgba(26,22,18,0.78); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 1.2rem; }
+  #loading.visible { display: flex; }
+  .loading-spinner { width: 32px; height: 32px; border: 1px solid var(--gold-light); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--gold-light); }
+
+  @media (max-width: 700px) {
+    main { padding: 1.5rem; }
+    header { padding: 1.2rem 1.5rem; }
+    .summary-section { grid-template-columns: 1fr; gap: 0.6rem; }
+    .week-title { font-size: 2rem; }
+  }
+  @media print {
+    header { background: var(--ink) !important; -webkit-print-color-adjust: exact; }
+    .drop-area, .actions, .export-bar, #loading { display: none !important; }
+    #output { display: block !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">Analysing reports…</div>
+</div>
+
+<header>
+  <div class="brand">Mello House</div>
+  <div class="brand-sub">Weekly EOD Summariser</div>
+</header>
+
+<main>
+  <div class="drop-area" id="dropArea">
+    <input type="file" id="fileInput" multiple accept=".xlsx,.xls">
+    <div class="drop-icon">⬡</div>
+    <div class="drop-title">Drop EOD reports here</div>
+    <div class="drop-sub">xlsx files · multiple days · click or drag</div>
+  </div>
+
+  <div class="file-list" id="fileList"></div>
+
+  <div class="actions">
+    <button class="btn-generate" id="btnGenerate" disabled>Generate Summary</button>
+    <button class="btn-clear" id="btnClear">Clear</button>
+    <span class="status-msg" id="statusMsg"></span>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">Reading files…</div>
+  </div>
+
+  <div id="output">
+    <div class="section-rule"><span>Weekly Summary</span></div>
+    <div class="week-header">
+      <div class="week-label">Weekly Summary</div>
+      <div class="week-title" id="weekTitle">—</div>
+    </div>
+    <div id="summaryContent"></div>
+    <div class="export-bar">
+      <span class="export-label">Export</span>
+      <button class="btn-export" id="btnPrint">Print / PDF</button>
+      <button class="btn-export" id="btnCopyText">Copy as text</button>
+    </div>
+  </div>
+</main>
+
+<script>
+const SECTIONS = [
+  'AM Shift Report','PM Shift Report','AM Concierge','PM Concierge',
+  'Member Feedback','Lost Items','Mello House Maintenance','Mello House Housekeeping',
+  'Flowers / Plants Condition','Morning Briefing Como','RSA / Incidents',
+];
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const API_ENDPOINT = '/api/proxy';
+
+let files = [];
+
+const dropArea = document.getElementById('dropArea');
+const fileInput = document.getElementById('fileInput');
+const fileList  = document.getElementById('fileList');
+const btnGenerate = document.getElementById('btnGenerate');
+const statusMsg = document.getElementById('statusMsg');
+
+dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+dropArea.addEventListener('drop', e => { e.preventDefault(); dropArea.classList.remove('drag-over'); addFiles([...e.dataTransfer.files]); });
+fileInput.addEventListener('change', () => { addFiles([...fileInput.files]); fileInput.value = ''; });
+
+function addFiles(newFiles) { newFiles.forEach(f => { if (!files.find(x => x.name === f.name)) files.push(f); }); renderFileList(); }
+function removeFile(name)  { files = files.filter(f => f.name !== name); renderFileList(); }
+
+function renderFileList() {
+  fileList.innerHTML = '';
+  files.forEach(f => {
+    const pill = document.createElement('div');
+    pill.className = 'file-pill';
+    pill.innerHTML = `<span>${f.name}</span><button class="remove">×</button>`;
+    pill.querySelector('.remove').onclick = () => removeFile(f.name);
+    fileList.appendChild(pill);
+  });
+  statusMsg.textContent = files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} loaded` : '';
+  btnGenerate.disabled = files.length === 0;
+}
+
+document.getElementById('btnClear').onclick = () => {
+  files = []; renderFileList();
+  document.getElementById('output').classList.remove('visible');
+};
+
+function parseFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb  = XLSX.read(e.target.result, { type: 'binary' });
+        const ws  = wb.Sheets['EOD'];
+        if (!ws) return reject(new Error(`No EOD sheet in ${file.name}`));
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+        let date = null;
+        outer: for (const row of raw) {
+          for (let i = 0; i < row.length; i++) {
+            if (typeof row[i] === 'string' && row[i].toLowerCase().includes('date')) {
+              const next = row[i + 1];
+              if (next) { date = next instanceof Date ? next : typeof next === 'number' ? XLSX.SSF.parse_date_code(next) : new Date(next); break outer; }
+            }
+          }
+        }
+
+        const sectionRows = {};
+        raw.forEach((row, ri) => row.forEach(cell => {
+          if (typeof cell === 'string') SECTIONS.forEach(s => {
+            if (cell.toLowerCase().trim() === s.toLowerCase().trim() && !(s in sectionRows)) sectionRows[s] = ri;
+          });
+        }));
+
+        const sorted = Object.entries(sectionRows).sort((a, b) => a[1] - b[1]);
+        const data   = {};
+        sorted.forEach(([sec, startRow], idx) => {
+          const endRow = idx + 1 < sorted.length ? sorted[idx + 1][1] : startRow + 12;
+          const lines  = [];
+          for (let r = startRow + 1; r < Math.min(endRow, startRow + 12); r++) {
+            const vals = (raw[r] || []).map(v => String(v).trim()).filter(v => v && v !== '0');
+            if (vals.length) lines.push(vals.join(' | '));
+          }
+          data[sec] = lines.join('\n').trim();
+        });
+
+        resolve({ file: file.name, date, data });
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsBinaryString(file);
+  });
+}
+
+document.getElementById('btnGenerate').onclick = async () => {
+  setLoading(true, 'Parsing spreadsheets…');
+  document.getElementById('progressWrap').classList.add('visible');
+  setProgress(0, 'Reading files…');
+  try {
+    const results = [];
+    for (let i = 0; i < files.length; i++) {
+      setProgress(Math.round((i / files.length) * 50), `Parsing ${files[i].name}…`);
+      results.push(await parseFile(files[i]));
+    }
+    results.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+    setProgress(60, 'Generating summary with AI…');
+    setLoading(true, 'Generating summary…');
+    const summary = await generateSummary(results);
+    setProgress(100, 'Done');
+    renderSummary(summary);
+  } catch (err) {
+    alert('Error: ' + err.message);
+    console.error(err);
+  }
+  setLoading(false);
+  document.getElementById('progressWrap').classList.remove('visible');
+};
+
+async function generateSummary(days) {
+  const dayBlocks = days.map(d => {
+    const dateStr = d.date ? formatDate(d.date) : d.file;
+    const dayName = d.date ? DAY_NAMES[new Date(d.date).getDay()] : '?';
+    let block = `=== ${dayName} ${dateStr} ===\n`;
+    SECTIONS.forEach(s => { block += `\n[${s}]\n${(d.data[s] || 'NTR').replace(/£/g, '$')}\n`; });
+    return block;
+  }).join('\n\n');
+
+  const prompt = `You are summarising a week of End-of-Day (EOD) reports from Mello House, a private members' club in Australia. Always use $ for currency, never £.
+
+Here is the raw data extracted from each day's EOD report:
+
+${dayBlocks}
+
+Write a concise weekly summary — one short paragraph (3–5 sentences max) per category. Do NOT use bullet points — prose only. Synthesise all days into one narrative per category. Mention key names, numbers and notable events but keep it tight. Always use $ (not £) for any currency. Use professional hospitality tone. Return JSON only in this exact shape:
+
+{
+  "weekRange": "e.g. 2–7 February 2026",
+  "sections": [
+    { "title": "AM Shift Report", "body": "..." },
+    { "title": "PM Shift Report", "body": "..." },
+    { "title": "AM Concierge", "body": "..." },
+    { "title": "PM Concierge", "body": "..." },
+    { "title": "Member Feedback", "body": "..." },
+    { "title": "Lost Items", "body": "..." },
+    { "title": "Mello House Maintenance", "body": "..." },
+    { "title": "Mello House Housekeeping", "body": "..." },
+    { "title": "Flowers / Plants Condition", "body": "..." },
+    { "title": "Morning Briefing Como", "body": "..." },
+    { "title": "RSA / Incidents", "body": "..." }
+  ]
+}
+
+Return ONLY the JSON, no markdown, no backticks.`;
+
+  const resp = await fetch(API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4000, messages: [{ role: 'user', content: prompt }] })
+  });
+
+  if (!resp.ok) {
+    const t = await resp.json().catch(() => ({}));
+    throw new Error(`API error ${resp.status}: ${t?.error?.message || JSON.stringify(t)}`);
+  }
+  const data  = await resp.json();
+  const text  = data.content.map(c => c.text || '').join('');
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+function renderSummary(summary) {
+  document.getElementById('weekTitle').textContent = summary.weekRange || '';
+  const container = document.getElementById('summaryContent');
+  container.innerHTML = '';
+  summary.sections.forEach(sec => {
+    const div = document.createElement('div');
+    div.className = 'summary-section';
+    const isNTR = !sec.body || sec.body.trim().toUpperCase() === 'NTR';
+    div.innerHTML = `
+      <div class="section-heading">${sec.title}</div>
+      <div class="section-body">${isNTR
+        ? '<span class="ntr-tag">Nothing to report</span>'
+        : sec.body.split('\n').filter(Boolean).map(p => `<p>${p}</p>`).join('')
+      }</div>`;
+    container.appendChild(div);
+  });
+  document.getElementById('output').classList.add('visible');
+  document.getElementById('output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  const dt = d instanceof Date ? d : new Date(d);
+  return isNaN(dt) ? String(d) : dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+function setLoading(on, text = '') {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loading').classList.toggle('visible', on);
+}
+function setProgress(pct, label) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = label;
+}
+
+document.getElementById('btnPrint').onclick = () => window.print();
+document.getElementById('btnCopyText').onclick = () => {
+  let text = document.getElementById('weekTitle').textContent + '\n\n';
+  document.querySelectorAll('.summary-section').forEach(s => {
+    text += `## ${s.querySelector('.section-heading').textContent}\n\n${s.querySelector('.section-body').textContent.trim()}\n\n`;
+  });
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btnCopyText');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy as text', 1800);
+  });
+};
+</script>
+</body>
+</html>
